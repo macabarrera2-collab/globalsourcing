@@ -1169,30 +1169,6 @@
   /* Assignee */
   .assignee-row { display: flex; gap: 6px; align-items: stretch; }
   .assignee-row select { flex: 1; min-width: 0; }
-  .assignee-row select[hidden] { display: none !important; }
-  .assignee-picker { position: relative; flex: 1; min-width: 0; }
-  .assignee-picker-btn {
-    width: 100%; min-height: 32px; border: 1px solid var(--line); background: var(--paper-2);
-    border-radius: var(--radius); padding: 6px 30px 6px 9px; font: inherit; font-size: 12.5px;
-    color: var(--ink); text-align: left; cursor: pointer; position: relative; white-space: normal; line-height: 1.25;
-  }
-  .assignee-picker-btn::after { content: '⌄'; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-mute); }
-  .assignee-picker-btn:hover { border-color: var(--wine); background: var(--paper); }
-  .assignee-picker.open .assignee-picker-btn { border-color: var(--wine); box-shadow: 0 0 0 3px var(--wine-tint); background: var(--paper); }
-  .assignee-picker-menu {
-    display: none; position: absolute; left: 0; top: calc(100% + 4px); width: 100%; max-height: 220px; overflow-y: auto;
-    background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
-    padding: 6px; z-index: 300;
-  }
-  .assignee-picker.open .assignee-picker-menu { display: block; }
-  .assignee-option {
-    width: 100%; border: 0; background: transparent; border-radius: 6px; padding: 7px 8px; font: inherit; font-size: 12.5px;
-    color: var(--ink); text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px;
-  }
-  .assignee-option:hover { background: var(--bg-2); }
-  .assignee-option.selected { background: var(--wine-tint); font-weight: 700; }
-  .assignee-option .check { width: 16px; color: var(--wine); font-weight: 900; flex-shrink: 0; }
-  .assignee-option:not(.selected) .check { visibility: hidden; }
   .assignee-manage {
     flex-shrink: 0;
     width: 38px;
@@ -1925,12 +1901,6 @@
   #task-modal .assignee-manage {
     width: 32px;
   }
-  #task-modal .assignee-picker-btn {
-    min-height: 28px !important; padding: 4px 28px 4px 7px !important; font-size: 11.8px !important;
-  }
-  #task-modal .assignee-picker-menu { max-height: 190px !important; }
-  #task-modal .assignee-option { padding: 5px 7px !important; font-size: 11.8px !important; }
-
   #task-modal .tags-editor {
     min-height: 32px;
     padding: 4px;
@@ -3160,7 +3130,6 @@
 <div class="selection-bar" id="selection-bar">
   <span class="sel-count" id="sel-count">0 tareas seleccionadas</span>
   <div class="sel-divider"></div>
-  <button id="sel-select-all" title="Seleccionar todas las tareas visibles">Seleccionar todas</button>
   <button class="btn-clear" id="sel-clear">Limpiar</button>
   <button id="sel-minute">
     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z"/><path d="m2 4 6 5 6-5"/></svg>
@@ -3216,13 +3185,9 @@
             <div class="field">
               <label>Asignado a</label>
               <div class="assignee-row">
-                <select id="t-assignee-select" multiple hidden aria-hidden="true">
+                <select id="t-assignee-select">
                   <option value="">— Sin asignar —</option>
                 </select>
-                <div class="assignee-picker" id="t-assignee-picker">
-                  <button type="button" class="assignee-picker-btn" id="t-assignee-btn">— Sin asignar —</button>
-                  <div class="assignee-picker-menu" id="t-assignee-menu"></div>
-                </div>
                 <button type="button" class="assignee-manage" id="t-manage-members" title="Administrar integrantes del gestor">
                   <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2.5"/><path d="M3 13c0-2.5 2.2-4 5-4s5 1.5 5 4"/></svg>
                 </button>
@@ -3457,80 +3422,6 @@ function currentBoard() {
   return state.boards.find(b => b.id === state.currentBoardId) || state.boards[0];
 }
 
-function uniqueSortedNames(values) {
-  return [...new Set((values || [])
-    .map(v => String(v || '').trim())
-    .filter(Boolean))]
-    .sort((a,b) => a.localeCompare(b, 'es', {sensitivity:'base'}));
-}
-
-function taskAssignees(task) {
-  if (!task) return [];
-  if (Array.isArray(task.assignees)) return uniqueSortedNames(task.assignees);
-  if (task.assignee && String(task.assignee).trim()) return uniqueSortedNames([task.assignee]);
-  return [];
-}
-
-function taskAssigneeText(task, empty = 'Sin responsable') {
-  const names = taskAssignees(task);
-  return names.length ? names.join(', ') : empty;
-}
-
-function setTaskAssignees(task, names) {
-  const clean = uniqueSortedNames(names);
-  task.assignees = clean;
-  // Campo legado: se mantiene para compatibilidad con exportaciones/versiones anteriores.
-  task.assignee = clean.join(', ');
-}
-
-function taskHasAssigneeFilter(task, value) {
-  const names = taskAssignees(task);
-  if (value === '__unassigned__') return names.length === 0;
-  return names.includes(value);
-}
-
-function boardAssigneeNames(board = currentBoard()) {
-  const set = new Set();
-  (board.members || []).forEach(m => { if (m && String(m).trim()) set.add(String(m).trim()); });
-  (board.tasks || []).forEach(t => taskAssignees(t).forEach(a => set.add(a)));
-  return [...set].sort((a,b) => a.localeCompare(b, 'es', {sensitivity:'base'}));
-}
-
-function ensureBoardKnownTags(board = currentBoard()) {
-  if (!Array.isArray(board.knownTags)) board.knownTags = [];
-  return board.knownTags;
-}
-
-function scopedBoardKnownTags(board = currentBoard()) {
-  // Importante: ignoramos etiquetas antiguas sin boardId porque vienen de versiones
-  // donde el catálogo era global y se mezclaba entre gestores.
-  return ensureBoardKnownTags(board).filter(tag =>
-    tag && tag.label && (tag.boardId === board.id || tag.scopeBoardId === board.id)
-  );
-}
-
-function ensureEquiposGoSoBoard(targetState) {
-  const root = targetState || state;
-  root.boards = root.boards || [];
-  const exists = root.boards.some(b => String(b.name || '').toLowerCase() === 'depósito de equipos goso' || String(b.name || '').toLowerCase() === 'deposito de equipos goso');
-  if (exists) return false;
-  root.boards.push({
-    id: 'b_equipos_goso_' + id(),
-    name: 'Depósito de equipos GoSo',
-    members: [],
-    knownTags: [],
-    hiddenCompletedByCol: {},
-    regions: [],
-    columns: [
-      { id: id(), name: 'Pendientes', region: '' },
-      { id: id(), name: 'En curso', region: '' },
-      { id: id(), name: 'Hecho', region: '' }
-    ],
-    tasks: []
-  });
-  return true;
-}
-
 
 function hasPendingDependencies(task, board = currentBoard()) {
   if (!task || task.status === 'done') return false;
@@ -3597,7 +3488,6 @@ function taskMatchesStatusFilter(t, statusValue) {
   if (statusValue === '__overdue__') return isTaskOverdue(t);
   if (statusValue === '__due_soon__') return isTaskDueSoon(t);
   if (statusValue === '__blocking__') return isBlockingTask(t);
-  if (statusValue === '__no_due_date__') return t.status !== 'done' && !t.date;
   return t.status === statusValue;
 }
 
@@ -3641,8 +3531,6 @@ function normalizeState(s) {
   (s.boards || []).forEach(b => {
     if (!b.hiddenCompletedByCol || typeof b.hiddenCompletedByCol !== 'object') b.hiddenCompletedByCol = {};
     if (!Array.isArray(b.regions)) b.regions = [];
-    if (!Array.isArray(b.knownTags)) b.knownTags = [];
-    // Las etiquetas quedan aisladas por gestor. No migramos catálogos globales para evitar mezclar GP / Maola / otros.
     (b.columns || []).forEach(c => { if (typeof c.region !== 'string') c.region = ''; });
     if (!Array.isArray(b.members)) {
       // Seed members from existing assignees on this board
@@ -3660,15 +3548,8 @@ function normalizeState(s) {
       if (!Array.isArray(t.subtasks)) t.subtasks = [];
       if (!Array.isArray(t.tags)) t.tags = [];
       if (!Array.isArray(t.deps)) t.deps = [];
-      setTaskAssignees(t, Array.isArray(t.assignees) ? t.assignees : (t.assignee ? [t.assignee] : []));
-      t.tags.forEach(tag => {
-        if (tag && tag.label && !b.knownTags.some(x => x.label === tag.label && (x.boardId === b.id || x.scopeBoardId === b.id))) {
-          b.knownTags.push({label: tag.label, color: tag.color || '', boardId: b.id});
-        }
-      });
     });
   });
-  delete s.knownTags;
   return s;
 }
 function localSaveState() {
@@ -3887,23 +3768,40 @@ function subscribeToSupabaseChanges() {
 
 function seedState() {
   const boardId = 'b_' + id();
+  const cols = [
+    { id: id(), name: 'Varios' },
+    { id: id(), name: 'Importación temporal' },
+    { id: id(), name: 'Kirkland' },
+    { id: id(), name: 'Dadá SB - Perú' }
+  ];
+  const mk = (colId, title, opts = {}) => {
+    const t = sampleTask(colId, title, opts.tags || []);
+    if (opts.assignee) t.assignee = opts.assignee;
+    if (opts.desc) t.desc = opts.desc;
+    if (opts.status) t.status = opts.status;
+    if (opts.date) t.date = opts.date;
+    return t;
+  };
   return {
     currentBoardId: boardId,
     boards: [{
       id: boardId,
       name: 'Viña Maola',
-      members: [],
+      members: ['Nicolás Vergara', 'GoSo', 'Manu Campos', 'Fernanda Villou', 'Calidad Peña'],
       hiddenCompletedByCol: {},
-      knownTags: [],
       regions: [],
-      columns: [
-        { id: id(), name: 'Varios', region: '' }
-      ],
-      tasks: []
+      columns: cols,
+      tasks: [
+        mk(cols[0].id, 'Definir cortes Blancos - semana 8/6', { tags: [['Seguimiento','sand']], assignee: 'Nicolás Vergara', desc: 'Coordinar con enología los cortes de la próxima semana' }),
+        mk(cols[0].id, 'Adelantar PO FLM SB', { tags: [['GoSo','plum'],['Calidad Peña','leaf']], assignee: 'GoSo', status: 'progress' }),
+        mk(cols[1].id, 'Silencio positivo', { assignee: 'Manu Campos' }),
+        mk(cols[1].id, 'Régimen Chardonnay', { tags: [['Seguimiento','sand']], assignee: 'Nicolás Vergara' }),
+        mk(cols[2].id, 'Especificaciones vino', { tags: [['Enología','leaf']], assignee: 'Fernanda Villou' }),
+        mk(cols[3].id, 'Enviar arte final', { tags: [['Desarrollo','amber']], assignee: 'Manu Campos', status: 'blocked' })
+      ]
     }]
   };
 }
-
 function sampleTask(colId, title, tags) {
   return {
     id: id(),
@@ -3969,7 +3867,7 @@ function focusSummaryLine(t, board, opts = {}) {
   const deposito = col ? col.name : 'Sin depósito';
   const parts = [];
   if (!opts.omitDeposito) parts.push(deposito);
-  parts.push(taskAssigneeText(t));
+  parts.push(t.assignee || 'Sin responsable');
   parts.push(analysisTaskDateMeta(t));
   const dep = dependencyInfoText(t, board);
   if (dep) parts.push(dep);
@@ -4329,12 +4227,11 @@ function renderCard(t) {
     return dep && dep.status === 'done';
   });
 
-  const assigneeNames = taskAssignees(t);
-  const assigneeHtml = assigneeNames.length
-    ? assigneeNames.map(name => `<span class="meta-assignee">
-        <span class="assignee-avatar ${avatarColorClass(name)}">${escapeHtml(initials(name))}</span>
-        <span class="meta-assignee-name">${escapeHtml(name)}</span>
-      </span>`).join('')
+  const assigneeHtml = t.assignee
+    ? `<span class="meta-assignee">
+        <span class="assignee-avatar ${avatarColorClass(t.assignee)}">${escapeHtml(initials(t.assignee))}</span>
+        <span class="meta-assignee-name">${escapeHtml(t.assignee)}</span>
+      </span>`
     : '';
 
   el.innerHTML = `
@@ -4425,13 +4322,13 @@ function avatarColorClass(name) {
 function cardMatchesFilters(t) {
   if (filterState.search) {
     const q = filterState.search.toLowerCase();
-    const haystack = [t.title, t.desc, taskAssigneeText(t, ''), t.meetingNote, ...(t.tags || []).map(x => x.label)]
+    const haystack = [t.title, t.desc, t.assignee, t.meetingNote, ...(t.tags || []).map(x => x.label)]
       .filter(Boolean).join(' ').toLowerCase();
     if (!haystack.includes(q)) return false;
   }
   if (filterState.assignees.size > 0) {
-    const matchesAssignee = [...filterState.assignees].some(value => taskHasAssigneeFilter(t, value));
-    if (!matchesAssignee) return false;
+    const a = t.assignee || '__unassigned__';
+    if (!filterState.assignees.has(a)) return false;
   }
   if (filterState.tags.size > 0) {
     const hasTag = (t.tags || []).some(tag => filterState.tags.has(tag.label));
@@ -4537,7 +4434,7 @@ function openTaskModal(taskId, isNew = false) {
 
   refreshTaskStatusPills(t.status);
 
-  refreshAssigneeSelect(taskAssignees(t));
+  refreshAssigneeSelect(t.assignee);
   renderTagsEditor(t);
   renderSubtasksEditor(t);
   renderDepsEditor(t);
@@ -4548,77 +4445,22 @@ function openTaskModal(taskId, isNew = false) {
 
 function refreshAssigneeSelect(currentValue) {
   const sel = document.getElementById('t-assignee-select');
-  const picker = document.getElementById('t-assignee-picker');
-  const btn = document.getElementById('t-assignee-btn');
-  const menu = document.getElementById('t-assignee-menu');
   const board = currentBoard();
-  const selected = uniqueSortedNames(Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []));
-
-  sel.innerHTML = '';
-  menu.innerHTML = '';
-
-  function syncHiddenSelect() {
-    sel.innerHTML = '';
-    selected.forEach(name => {
-      const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
-      opt.selected = true;
-      sel.appendChild(opt);
-    });
-    btn.textContent = selected.length ? selected.join(', ') : '— Sin asignar —';
+  sel.innerHTML = '<option value="">— Sin asignar —</option>';
+  (board.members || []).forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    sel.appendChild(opt);
+  });
+  // If the task has an assignee not in the members list (e.g. legacy), add it
+  if (currentValue && !(board.members || []).includes(currentValue)) {
+    const opt = document.createElement('option');
+    opt.value = currentValue;
+    opt.textContent = currentValue + ' (no en lista)';
+    sel.appendChild(opt);
   }
-
-  function rebuildMenu() {
-    menu.innerHTML = '';
-    const none = document.createElement('button');
-    none.type = 'button';
-    none.className = 'assignee-option' + (selected.length === 0 ? ' selected' : '');
-    none.innerHTML = '<span class="check">✓</span><span>— Sin asignar —</span>';
-    none.onclick = (e) => {
-      e.preventDefault();
-      selected.splice(0, selected.length);
-      syncHiddenSelect();
-      rebuildMenu();
-      commitTaskModalFields(false);
-    };
-    menu.appendChild(none);
-
-    boardAssigneeNames(board).forEach(name => {
-      const row = document.createElement('button');
-      row.type = 'button';
-      const isSelected = selected.includes(name);
-      row.className = 'assignee-option' + (isSelected ? ' selected' : '');
-      row.innerHTML = `<span class="check">✓</span><span>${escapeHtml(name)}</span>`;
-      row.onclick = (e) => {
-        e.preventDefault();
-        const idx = selected.indexOf(name);
-        if (idx >= 0) selected.splice(idx, 1);
-        else selected.push(name);
-        selected.sort((a,b) => a.localeCompare(b, 'es', {sensitivity:'base'}));
-        syncHiddenSelect();
-        rebuildMenu();
-        commitTaskModalFields(false);
-      };
-      menu.appendChild(row);
-    });
-  }
-
-  syncHiddenSelect();
-  rebuildMenu();
-
-  if (!picker.dataset.bound) {
-    picker.dataset.bound = '1';
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      picker.classList.toggle('open');
-    });
-    menu.addEventListener('click', (e) => e.stopPropagation());
-    document.addEventListener('click', (e) => {
-      if (!picker.contains(e.target)) picker.classList.remove('open');
-    });
-  }
+  sel.value = currentValue || '';
 }
 
 function refreshTaskStatusPills(status) {
@@ -4634,19 +4476,18 @@ function closeTaskModal() {
 
 /* ---------- Catalog: tags across all boards ---------- */
 function collectTags() {
-  // Catálogo del gestor actual únicamente.
-  // 1) Siempre incluye etiquetas realmente usadas en tareas del gestor actual.
-  // 2) Incluye etiquetas creadas manualmente solo si están marcadas con boardId del gestor actual.
-  // Las etiquetas viejas sin boardId se ignoran para cortar la contaminación entre gestores.
-  const board = currentBoard();
+  // Map of label -> color (most-recent wins)
   const map = new Map();
-  (board.tasks || []).forEach(t => {
+  state.boards.forEach(b => b.tasks.forEach(t => {
     (t.tags || []).forEach(tag => {
-      if (tag && tag.label && String(tag.label).trim()) map.set(String(tag.label).trim(), tag.color || '');
+      if (tag.label && tag.label.trim()) {
+        map.set(tag.label.trim(), tag.color || '');
+      }
     });
-  });
-  scopedBoardKnownTags(board).forEach(({label, color}) => {
-    if (label && String(label).trim()) map.set(String(label).trim(), color || map.get(String(label).trim()) || '');
+  }));
+  // Also include any saved-only entries
+  (state.knownTags || []).forEach(({label, color}) => {
+    if (!map.has(label)) map.set(label, color || '');
   });
   return [...map.entries()]
     .map(([label, color]) => ({label, color}))
@@ -4655,16 +4496,12 @@ function collectTags() {
 
 function rememberTag(label, color) {
   if (!label || !label.trim()) return;
-  const board = currentBoard();
-  const known = ensureBoardKnownTags(board);
-  const clean = label.trim();
-  const existing = known.find(t => t.label === clean && (t.boardId === board.id || t.scopeBoardId === board.id));
+  state.knownTags = state.knownTags || [];
+  const existing = state.knownTags.find(t => t.label === label.trim());
   if (existing) {
     existing.color = color || '';
-    existing.boardId = board.id;
-    delete existing.scopeBoardId;
   } else {
-    known.push({label: clean, color: color || '', boardId: board.id});
+    state.knownTags.push({label: label.trim(), color: color || ''});
   }
 }
 
@@ -5081,9 +4918,7 @@ function commitTaskModalFields(rerender = false) {
   t.date = document.getElementById('t-date').value;
   updateTaskDateCounters();
   t.priority = document.getElementById('t-priority').value || 'medium';
-  const assigneeSelect = document.getElementById('t-assignee-select');
-  const selectedAssignees = Array.from(assigneeSelect.selectedOptions).map(o => o.value).filter(Boolean);
-  setTaskAssignees(t, selectedAssignees);
+  t.assignee = document.getElementById('t-assignee-select').value;
   t.meetingNote = document.getElementById('t-meeting-note').value.trim();
   t.createdDate = document.getElementById('t-create-date').value || todayISO();
   const activeStatus = document.querySelector('#t-status .status-pill.active');
@@ -5106,7 +4941,7 @@ function commitTaskModalFields(rerender = false) {
   }
   if (rerender) render();
 }
-['t-title','t-desc','t-date','t-create-date','t-priority','t-meeting-note'].forEach(idn => {
+['t-title','t-desc','t-date','t-create-date','t-priority','t-assignee-select','t-meeting-note'].forEach(idn => {
   const el = document.getElementById(idn);
   if (!el) return;
   el.addEventListener('input', () => { if (idn === 't-date' || idn === 't-create-date') updateTaskDateCounters(); scheduleTaskAutosave(); });
@@ -5261,7 +5096,7 @@ function closeMembersModal() {
   // If we came from a task, refresh its assignee dropdown
   if (membersReturnToTask && editingTaskId) {
     const t = currentBoard().tasks.find(x => x.id === editingTaskId);
-    refreshAssigneeSelect(t ? taskAssignees(t) : []);
+    refreshAssigneeSelect(t ? t.assignee : '');
   }
   membersReturnToTask = false;
 }
@@ -5497,7 +5332,6 @@ document.getElementById('btn-import').onclick = () => {
 /* ---------- Selection bar (for minute generation) ---------- */
 const selectionBar = document.getElementById('selection-bar');
 const selMinuteBtn = document.getElementById('sel-minute');
-const selSelectAllBtn = document.getElementById('sel-select-all');
 const selClearBtn = document.getElementById('sel-clear');
 const selCountEl = document.getElementById('sel-count');
 
@@ -5515,15 +5349,6 @@ selClearBtn.onclick = () => {
   selectedTasks.clear();
   updateSelectionBar();
   document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
-};
-
-selSelectAllBtn.onclick = () => {
-  const board = currentBoard();
-  board.tasks
-    .filter(t => t.status !== 'done' && cardMatchesFilters(t))
-    .forEach(t => selectedTasks.add(t.id));
-  render();
-  updateSelectionBar();
 };
 
 selMinuteBtn.onclick = () => {
@@ -5680,15 +5505,23 @@ function setupFilterChip(chipId, menuId, getOptions, stateKey) {
 
 const f1 = setupFilterChip('filter-assignee', 'filter-assignee-menu', () => {
   const board = currentBoard();
-  const sorted = boardAssigneeNames(board);
+  const assignees = new Set();
+  board.tasks.forEach(t => { if (t.assignee) assignees.add(t.assignee); });
+  (board.members || []).forEach(m => assignees.add(m));
+  const sorted = [...assignees].sort((a,b) => a.localeCompare(b, 'es'));
   const opts = sorted.map(a => ({ value: a, label: a }));
   // Add "Sin asignar"
-  if (board.tasks.some(t => taskAssignees(t).length === 0)) opts.unshift({ value: '__unassigned__', label: '— Sin asignar —' });
+  if (board.tasks.some(t => !t.assignee)) opts.unshift({ value: '__unassigned__', label: '— Sin asignar —' });
   return opts;
 }, 'assignees');
 
 const f2 = setupFilterChip('filter-tag', 'filter-tag-menu', () => {
-  return collectTags().map(({label, color}) => ({ value: label, label, preview: label, previewColor: color }));
+  const board = currentBoard();
+  const tagMap = new Map();
+  board.tasks.forEach(t => (t.tags || []).forEach(g => { if (g.label) tagMap.set(g.label, g.color || ''); }));
+  return [...tagMap.entries()]
+    .sort((a,b) => a[0].localeCompare(b[0], 'es'))
+    .map(([label, color]) => ({ value: label, label, preview: label, previewColor: color }));
 }, 'tags');
 
 const fPriority = setupFilterChip('filter-priority', 'filter-priority-menu', () => {
@@ -5715,7 +5548,6 @@ const f3 = setupFilterChip('filter-status', 'filter-status-menu', () => {
     { value: 'todo', label: 'Pendiente' },
     { value: 'progress', label: 'En curso' },
     { value: '__due_soon__', label: 'Próximo a vencer (7 días)' },
-    { value: '__no_due_date__', label: 'Sin vencimiento' },
     { value: '__overdue__', label: 'Vencido' },
     { value: 'done', label: 'Hecho' },
     { value: '__blocking__', label: 'Bloqueante' },
@@ -5834,12 +5666,9 @@ function buildResponsibleSummaryData(board = currentBoard()) {
   const tasks = tasksForWrittenSummary(board);
   const byPerson = new Map();
   tasks.forEach(t => {
-    const names = taskAssignees(t);
-    const targets = names.length ? names : ['Sin responsable'];
-    targets.forEach(name => {
-      if (!byPerson.has(name)) byPerson.set(name, []);
-      byPerson.get(name).push(t);
-    });
+    const name = responsibleLabel(t.assignee);
+    if (!byPerson.has(name)) byPerson.set(name, []);
+    byPerson.get(name).push(t);
   });
   return [...byPerson.entries()]
     .map(([name, personTasks]) => ({ name, tasks: sortTasksForOutput(personTasks) }))
@@ -5851,10 +5680,6 @@ function buildResponsibleSummaryData(board = currentBoard()) {
       if (bv !== av) return bv - av;
       return a.name.localeCompare(b.name, 'es');
     });
-}
-
-function unassignedTasksForMinute(board = currentBoard()) {
-  return tasksForWrittenSummary(board).filter(t => t.status !== 'done' && taskAssignees(t).length === 0);
 }
 
 function buildMinuteText() {
@@ -5949,51 +5774,126 @@ function buildMinuteHTML() {
     });
   }
 
-  const unassigned = unassignedTasksForMinute(board);
-  if (unassigned.length) {
-    h += `<h3 style="margin:18px 0 8px;font-size:13pt;color:#222;border-bottom:1px solid #ccc;padding-bottom:4px">Tareas sin responsable asignado</h3>`;
-    h += `<ul style="margin:4px 0 0 18px;padding-left:14px">`;
-    unassigned.forEach(t => {
-      const col = columnForTask(t, board);
-      const depInfo = dependencyInfoText(t, board);
-      h += `<li style="margin:4px 0 6px"><b>${esc(col ? col.name : 'Sin depósito')}</b> — ${esc(t.title || 'Sin título')} — <span style="color:#333">${esc(analysisTaskDateMeta(t))}</span>`;
-      if (depInfo) h += `<div style="font-size:10pt;color:#666;margin-top:2px">(${esc(depInfo)})</div>`;
-      h += `</li>`;
-    });
-    h += `</ul>`;
-  }
-
   h += `<p style="margin-top:16px"><b>Detalle operativo:</b><br>`;
   h += `Adjunto el tablero actualizado en HTML para filtrar por responsable, BU, depósito, estado, vencidas, próximas a vencer y tareas bloqueantes.</p>`;
   h += `<p>Saludos,</p></div>`;
   return h;
 }
 
-const TEAM_HTML_TEMPLATE = "<!DOCTYPE html>\n<html lang=\"es\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Seguimiento \u00b7 __BOARD_TITLE__</title>\n<style>\n:root{--bg:#f7f7f8;--paper:#fff;--line:#e6e6e6;--ink:#111;--muted:#333;--purple:#5b5fc7;--red:#a4262c;--orange:#ca5010;--yellow:#986f00;--green:#107c10;--shadow:0 8px 26px rgba(0,0,0,.08)}\n*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:\"Segoe UI\",system-ui,-apple-system,BlinkMacSystemFont,Arial,sans-serif;font-size:14px;line-height:1.4}button,input,select{font:inherit}header{position:sticky;top:0;z-index:10;background:var(--paper);border-bottom:1px solid var(--line);padding:14px 22px;display:flex;gap:18px;align-items:center;justify-content:space-between}h1{margin:0;font-size:19px}.sub{font-size:12px;color:#333;margin-top:2px}.tabs{display:flex;gap:8px}.tab,.btn{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:8px 14px;cursor:pointer;font-weight:600}.tab.active{background:var(--purple);border-color:var(--purple);color:#fff}.wrap{padding:16px 22px}.filters{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px;align-items:center}.filters input,.filters select{height:36px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:0 12px;color:#111}.filters input{width:280px}.kpis{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:10px;margin-bottom:16px}.kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:0 1px 1px rgba(0,0,0,.02)}.kpi b{display:block;font-size:25px;margin-bottom:4px}.kpi.red b{color:var(--red)}.kpi.orange b{color:var(--orange)}.kpi.green b{color:var(--green)}.board{display:flex;gap:12px;align-items:flex-start;overflow:auto;padding-bottom:18px}.col{width:260px;min-width:260px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px}.colh{font-weight:800;margin-bottom:8px;display:flex;gap:6px;align-items:center}.bu{font-size:10px;color:#fff;border-radius:4px;padding:1px 6px;font-weight:800;letter-spacing:.04em}.count{margin-left:auto;background:#f0f0f0;border-radius:999px;padding:1px 8px;font-size:12px}.card{border:1px solid var(--line);border-radius:8px;padding:9px;margin:7px 0;background:#fff;cursor:pointer}.card:hover{box-shadow:var(--shadow)}.card.done{opacity:.65}.title{font-weight:700;margin-bottom:4px}.meta{font-size:12px;color:#222;display:flex;gap:6px;flex-wrap:wrap}.pill{font-size:11px;border-radius:4px;padding:1px 6px;font-weight:700}.overdue{background:#fde7e9;color:#a4262c}.soon{background:#fff4ce;color:#986f00}.ok{background:#e6f4ea;color:#107c10}.nodate{background:#eee;color:#111}.blocked{background:#fce4d6;color:#9a3412}.tag{display:inline-block;font-size:10px;text-transform:uppercase;border-radius:4px;padding:1px 6px;margin:0 4px 4px 0;background:#eee;font-weight:700}.gantt{overflow:auto;background:#fff;border:1px solid var(--line);border-radius:10px}.ghead,.grow{display:grid;grid-template-columns:260px repeat(var(--days),64px);min-width:max-content}.ghead{position:sticky;top:0;background:#fff;z-index:2;border-bottom:1px solid var(--line)}.ghead div,.gcell,.gname{border-right:1px solid var(--line);padding:8px}.gname{font-weight:700;border-bottom:1px solid var(--line);background:#fff}.gcell{min-height:42px;border-bottom:1px solid #f0f0f0}.bar{display:block;border-radius:999px;color:#fff;font-size:11px;padding:4px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;font-weight:700;cursor:pointer}.bar.ok{background:#107c10}.bar.soon{background:#ca8a04}.bar.overdue{background:#a4262c}.bar.done{background:#666}.analysis-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:14px}.panel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px}.panel h2{font-size:16px;margin:0 0 10px}.group{margin:12px 0}.group h3{font-size:14px;margin:0 0 6px;color:#5e1622}.line{margin:6px 0;padding-left:12px}.empty{color:#333;font-style:italic}.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:50;align-items:center;justify-content:center;padding:20px}.modal.open{display:flex}.modal-card{background:#fff;border-radius:12px;max-width:780px;width:100%;max-height:88vh;overflow:auto;box-shadow:var(--shadow);padding:20px}.modal-card h2{margin:0 0 8px}.close{float:right;border:none;background:none;font-size:22px;cursor:pointer}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.detail-box{border-top:1px solid var(--line);padding-top:10px;margin-top:10px;white-space:pre-wrap}@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.analysis-grid{grid-template-columns:1fr}.detail-grid{grid-template-columns:1fr}}\n</style>\n</head>\n<body>\n<header><div><h1>Seguimiento \u00b7 __BOARD_TITLE__</h1><div class=\"sub\">Corte: __CUT_DATE__ \u00b7 archivo filtrable para equipo</div></div><div class=\"tabs\"><button class=\"tab active\" data-view=\"panel\">Panel</button><button class=\"tab\" data-view=\"gantt\">Gantt</button><button class=\"tab\" data-view=\"analysis\">An\u00e1lisis</button></div></header>\n<div class=\"wrap\">\n  <div class=\"filters\">\n    <input id=\"q\" placeholder=\"Buscar tarea, descripci\u00f3n, responsable...\">\n    <select id=\"fAssignee\"><option value=\"\">Responsable: todos</option></select>\n    <select id=\"fBU\"><option value=\"\">BU: todas</option></select>\n    <select id=\"fDep\"><option value=\"\">Dep\u00f3sito: todos</option></select>\n    <select id=\"fStatus\"><option value=\"\">Estado: todos</option><option value=\"todo\">Pendiente</option><option value=\"progress\">En curso</option><option value=\"blocked\">Bloqueado</option><option value=\"done\">Hecho</option><option value=\"__overdue__\">Vencidas</option><option value=\"__soon__\">Pr\u00f3ximas a vencer</option><option value=\"__blocking__\">Bloqueantes</option></select>\n    <button class=\"btn\" id=\"clear\">Limpiar</button>\n  </div>\n  <div id=\"app\"></div>\n</div>\n<div class=\"modal\" id=\"modal\"><div class=\"modal-card\"><button class=\"close\" id=\"modalClose\">\u00d7</button><div id=\"modalBody\"></div></div></div>\n<script>window.__TEAM_DATA__=__TEAM_DATA_JSON__;__CLOSE_SCRIPT__\n<script>\nconst DATA=window.__TEAM_DATA__;const board=DATA.board;let view='panel';\nconst $=s=>document.querySelector(s);const app=$('#app');\nconst statusMap={todo:'Pendiente',progress:'En curso',blocked:'Bloqueado',done:'Hecho'};\nfunction esc(s){return String(s||'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]));}\nfunction today(){const d=new Date();d.setHours(0,0,0,0);return d}\nfunction diffDays(iso){if(!iso)return null;const d=new Date(iso+'T00:00:00');return Math.round((d-today())/86400000)}\nfunction fmt(iso){if(!iso)return '';const [y,m,d]=iso.split('-');return d+'/'+m}\nfunction colOf(t){return board.columns.find(c=>c.id===t.colId)||{name:'Sin dep\u00f3sito'}}\nfunction buOfCol(c){return (board.regions||[]).find(r=>r.name===(c&&c.region))||null}\nfunction buOfTask(t){return buOfCol(colOf(t))}\nfunction blockingTasks(t){return (t.deps||[]).map(id=>board.tasks.find(x=>x.id===id)).filter(Boolean)}\nfunction blockedByTask(t){return board.tasks.filter(x=>(x.deps||[]).includes(t.id))}\nfunction isOverdue(t){const d=diffDays(t.date);return t.status!=='done'&&d!==null&&d<0}function isSoon(t){const d=diffDays(t.date);return t.status!=='done'&&d!==null&&d>=0&&d<=7}function isBlocking(t){return t.status!=='done'&&blockedByTask(t).some(x=>x.status!=='done')}\nfunction dueClass(t){if(t.status==='done')return 'done';if(!t.date)return 'nodate';if(isOverdue(t))return 'overdue';if(isSoon(t))return 'soon';return 'ok'}\nfunction dueRelativeText(t){const d=diffDays(t.date);if(d===null)return 'sin fecha';if(t.status==='done')return 'hecha';if(d<0)return 'vencida hace '+Math.abs(d)+' d';if(d===0)return 'vence hoy';return 'vence en '+d+' d'}\nfunction dateTextShort(t){return dueRelativeText(t)}\nfunction dateTextFull(t){const d=diffDays(t.date);if(d===null)return 'Fecha vencimiento: sin fecha';const f=fmt(t.date);return 'Fecha vencimiento: '+f+' - '+dueRelativeText(t)}\nfunction matchesStatus(t,v){if(!v)return true;if(v==='__overdue__')return isOverdue(t);if(v==='__due_soon__'||v==='__soon__')return isSoon(t);if(v==='__blocking__')return isBlocking(t);return t.status===v}\nfunction filtered(){const q=$('#q').value.toLowerCase().trim(),a=$('#fAssignee').value,bu=$('#fBU').value,dep=$('#fDep').value,st=$('#fStatus').value;return board.tasks.filter(t=>{const c=colOf(t),r=buOfCol(c);const text=[t.title,t.desc,t.assignee,t.meetingNote,c.name,(r&&r.name),...(t.tags||[]).map(x=>x.label)].join(' ').toLowerCase();return(!q||text.includes(q))&&(!a||(t.assignee||'__none__')===a)&&(!bu||((r&&r.name)||'__none__')===bu)&&(!dep||t.colId===dep)&&matchesStatus(t,st)})}\nfunction sortTasks(arr){return [...arr].sort((a,b)=>{const da=diffDays(a.date),db=diffDays(b.date);const va=da===null?99999:da,vb=db===null?99999:db;if(va!==vb)return va-vb;return (a.title||'').localeCompare(b.title||'','es')})}\nfunction fillFilters(){const ass=[...new Set(board.tasks.map(t=>t.assignee||'').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));if(board.tasks.some(t=>taskAssignees(t).length === 0))ass.unshift('__none__');ass.forEach(x=>$('#fAssignee').insertAdjacentHTML('beforeend','<option value=\"'+esc(x)+'\">'+(x==='__none__'?'Sin responsable':esc(x))+'</option>'));(board.regions||[]).forEach(r=>$('#fBU').insertAdjacentHTML('beforeend','<option value=\"'+esc(r.name)+'\">'+esc(r.name)+'</option>'));board.columns.forEach(c=>$('#fDep').insertAdjacentHTML('beforeend','<option value=\"'+esc(c.id)+'\">'+esc(c.name)+'</option>'));}\nfunction kpis(tasks){const active=tasks.filter(t=>t.status!=='done'),done=tasks.filter(t=>t.status==='done');return '<div class=\"kpis\"><div class=\"kpi\"><b>'+active.length+'</b>activas</div><div class=\"kpi red\"><b>'+active.filter(isOverdue).length+'</b>vencidas</div><div class=\"kpi orange\"><b>'+active.filter(isSoon).length+'</b>vencen \u2264 7 d\u00edas</div><div class=\"kpi red\"><b>'+active.filter(t=>t.status==='blocked').length+'</b>bloqueadas</div><div class=\"kpi\"><b>'+active.filter(t=>taskAssignees(t).length === 0).length+'</b>sin responsable</div><div class=\"kpi\"><b>'+active.filter(t=>!t.date).length+'</b>sin fecha</div><div class=\"kpi green\"><b>'+(board.tasks.length?Math.round(done.length/board.tasks.length*100):0)+'%</b>avance</div></div>'}\nfunction card(t){return '<div class=\"card '+(t.status==='done'?'done':'')+'\" onclick=\"openTask(\\''+t.id+'\\')\"><div>'+(t.tags||[]).map(g=>'<span class=\"tag\">'+esc(g.label)+'</span>').join('')+'</div><div class=\"title\">'+esc(t.title||'Sin t\u00edtulo')+'</div><div class=\"meta\"><span>'+esc(t.assignee||'Sin responsable')+'</span><span class=\"pill '+dueClass(t)+'\">'+esc(dateTextShort(t))+'</span>'+(t.status==='blocked'?'<span class=\"pill blocked\">Bloqueada</span>':'')+(isBlocking(t)?'<span class=\"pill blocked\">Bloqueante</span>':'')+'</div>'+(t.desc?'<div style=\"margin-top:5px\">'+esc(t.desc)+'</div>':'')+'</div>'}\nfunction renderPanel(){const tasks=filtered();let h=kpis(tasks)+'<div class=\"board\">';board.columns.forEach(c=>{const r=buOfCol(c);const ts=sortTasks(tasks.filter(t=>t.colId===c.id));if(!ts.length)return;h+='<section class=\"col\"><div class=\"colh\">'+esc(c.name)+' '+(r?'<span class=\"bu\" style=\"background:'+esc(r.color)+'\">'+esc(r.name)+'</span>':'')+'<span class=\"count\">'+ts.length+'</span></div>'+ts.map(card).join('')+'</section>'});h+='</div>';app.innerHTML=h;}\nfunction renderGantt(){const tasks=sortTasks(filtered().filter(t=>t.date));let min=today(),max=today();tasks.forEach(t=>{const d=new Date(t.date+'T00:00:00');if(d<min)min=d;if(d>max)max=d});min.setDate(min.getDate()-3);max.setDate(max.getDate()+7);const days=[];for(let d=new Date(min);d<=max;d.setDate(d.getDate()+1))days.push(new Date(d));let h=kpis(filtered())+'<div class=\"gantt\"><div class=\"ghead\" style=\"--days:'+days.length+'\"><div>Tarea</div>'+days.map(d=>'<div>'+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'</div>').join('')+'</div>';tasks.forEach(t=>{const idx=days.findIndex(d=>d.toDateString()===new Date(t.date+'T00:00:00').toDateString());h+='<div class=\"grow\" style=\"--days:'+days.length+'\"><div class=\"gname\">'+esc(t.title||'Sin t\u00edtulo')+'<div class=\"meta\">'+esc(colOf(t).name)+' \u00b7 '+esc(t.assignee||'Sin responsable')+'</div></div>'+days.map((d,i)=>'<div class=\"gcell\">'+(i===idx?'<span class=\"bar '+dueClass(t)+'\" onclick=\"openTask(\\''+t.id+'\\')\">'+esc(t.assignee||'Tarea')+'</span>':'')+'</div>').join('')+'</div>'});h+='</div>';app.innerHTML=h;}\nfunction renderAnalysis(){\n  const tasks=filtered(), active=tasks.filter(t=>t.status!=='done');\n  let h=kpis(tasks)+'<div class=\"analysis-grid\"><div class=\"panel\"><h2>Foco para reuni\u00f3n</h2>';\n  const focus=sortTasks(active.filter(t=>isOverdue(t)||isSoon(t)||t.status==='blocked'||isBlocking(t)));\n  const byBU=new Map();\n  focus.forEach(t=>{\n    const r=buOfTask(t), bu=(r&&r.name)||'Sin BU', dep=colOf(t).name;\n    if(!byBU.has(bu)) byBU.set(bu,new Map());\n    if(!byBU.get(bu).has(dep)) byBU.get(bu).set(dep,[]);\n    byBU.get(bu).get(dep).push(t);\n  });\n  if(!focus.length) h+='<p class=\"empty\">Sin focos cr\u00edticos con los filtros actuales.</p>';\n  for(const [bu,deps] of byBU.entries()){\n    h+='<div class=\"group\"><h3>'+esc(bu)+'</h3>';\n    for(const [dep,ts] of deps.entries()){\n      h+='<b>'+esc(dep)+'</b>';\n      ts.forEach(t=>{\n        h+='<div class=\"line\">\u2022 <a href=\"#\" onclick=\"openTask(\\''+t.id+'\\');return false\">'+esc(t.title||'Sin t\u00edtulo')+'</a> \u2014 '+esc(t.assignee||'Sin responsable')+' \u2014 '+esc(dateTextShort(t));\n        if(isBlocking(t)) h+=' <small>(bloquea: '+esc(blockedByTask(t).map(x=>x.title).join(', '))+')</small>';\n        if(blockingTasks(t).length) h+=' <small>(depende de: '+esc(blockingTasks(t).map(x=>x.title).join(', '))+')</small>';\n        h+='</div>';\n      });\n    }\n    h+='</div>';\n  }\n  h+='</div><div class=\"panel\"><h2>Dependencias a destrabar</h2>';\n  const blockers=sortTasks(active.filter(isBlocking));\n  if(!blockers.length) h+='<p class=\"empty\">Sin tareas bloqueantes.</p>';\n  blockers.forEach(t=>{\n    h+='<div class=\"line\">\u2022 <a href=\"#\" onclick=\"openTask(\\''+t.id+'\\');return false\"><b>'+esc(t.title||'Sin t\u00edtulo')+'</b></a> \u2014 '+esc(t.assignee||'Sin responsable')+' \u2014 bloquea: '+esc(blockedByTask(t).map(x=>x.title).join(', '))+'</div>';\n  });\n  h+='</div></div>';\n  app.innerHTML=h;\n}\nfunction render(){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view===view));if(view==='panel')renderPanel();if(view==='gantt')renderGantt();if(view==='analysis')renderAnalysis()}\nfunction openTask(id){const t=board.tasks.find(x=>x.id===id);if(!t)return;const r=buOfTask(t);const subs=(t.subtasks||[]).filter(s=>(s.text||'').trim());const subsHtml=subs.length?'<div class=\"detail-box\"><b>Subtareas</b><ul style=\"margin:8px 0 0 18px;padding:0\">'+subs.map(s=>'<li style=\"margin:4px 0;'+(s.done?'text-decoration:line-through;color:#555':'')+'\">'+(s.done?'✅ ':'☐ ')+esc(s.text)+'</li>').join('')+'</ul></div>':'';$('#modalBody').innerHTML='<h2>'+esc(t.title||'Sin t\u00edtulo')+'</h2><div class=\"detail-grid\"><div><b>Dep\u00f3sito:</b> '+esc(colOf(t).name)+'<br><b>BU:</b> '+esc(r?r.name:'Sin BU')+'<br><b>Responsable:</b> '+esc(t.assignee||'Sin responsable')+'<br><b>Estado:</b> '+esc(statusMap[t.status]||t.status)+'<br><b>Vencimiento:</b> '+esc(dateTextFull(t))+'</div><div><b>Prioridad:</b> '+esc(t.priority||'media')+'<br><b>Depende de:</b> '+esc(blockingTasks(t).map(x=>x.title).join(', ')||'Ninguna')+'<br><b>Bloquea a:</b> '+esc(blockedByTask(t).map(x=>x.title).join(', ')||'Ninguna')+'</div></div>'+(t.desc?'<div class=\"detail-box\"><b>Descripci\u00f3n</b><br>'+esc(t.desc)+'</div>':'')+(t.meetingNote?'<div class=\"detail-box\"><b>Comentarios</b><br>'+esc(t.meetingNote)+'</div>':'')+subsHtml;$('#modal').classList.add('open')}\n$('#modalClose').onclick=()=>$('#modal').classList.remove('open');$('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').classList.remove('open')};document.addEventListener('keydown',e=>{if(e.key==='Escape')$('#modal').classList.remove('open')});\ndocument.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{view=b.dataset.view;render()});['q','fAssignee','fBU','fDep','fStatus'].forEach(id=>$('#'+id).addEventListener('input',render));$('#clear').onclick=()=>{['q','fAssignee','fBU','fDep','fStatus'].forEach(id=>$('#'+id).value='');render()};fillFilters();render();\n__CLOSE_SCRIPT__\n</body></html>";
+const TEAM_HTML_TEMPLATE = "<!DOCTYPE html>\n<html lang=\"es\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Seguimiento \u00b7 __BOARD_TITLE__</title>\n<style>\n:root{--bg:#f7f7f8;--paper:#fff;--line:#e6e6e6;--ink:#111;--muted:#333;--purple:#5b5fc7;--red:#a4262c;--orange:#ca5010;--yellow:#986f00;--green:#107c10;--shadow:0 8px 26px rgba(0,0,0,.08)}\n*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:\"Segoe UI\",system-ui,-apple-system,BlinkMacSystemFont,Arial,sans-serif;font-size:14px;line-height:1.4}button,input,select{font:inherit}header{position:sticky;top:0;z-index:10;background:var(--paper);border-bottom:1px solid var(--line);padding:14px 22px;display:flex;gap:18px;align-items:center;justify-content:space-between}h1{margin:0;font-size:19px}.sub{font-size:12px;color:#333;margin-top:2px}.tabs{display:flex;gap:8px}.tab,.btn{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:8px 14px;cursor:pointer;font-weight:600}.tab.active{background:var(--purple);border-color:var(--purple);color:#fff}.wrap{padding:16px 22px}.filters{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px;align-items:center}.filters input,.filters select{height:36px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:0 12px;color:#111}.filters input{width:280px}.kpis{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:10px;margin-bottom:16px}.kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:0 1px 1px rgba(0,0,0,.02)}.kpi b{display:block;font-size:25px;margin-bottom:4px}.kpi.red b{color:var(--red)}.kpi.orange b{color:var(--orange)}.kpi.green b{color:var(--green)}.board{display:flex;gap:12px;align-items:flex-start;overflow:auto;padding-bottom:18px}.col{width:260px;min-width:260px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px}.colh{font-weight:800;margin-bottom:8px;display:flex;gap:6px;align-items:center}.bu{font-size:10px;color:#fff;border-radius:4px;padding:1px 6px;font-weight:800;letter-spacing:.04em}.count{margin-left:auto;background:#f0f0f0;border-radius:999px;padding:1px 8px;font-size:12px}.card{border:1px solid var(--line);border-radius:8px;padding:9px;margin:7px 0;background:#fff;cursor:pointer}.card:hover{box-shadow:var(--shadow)}.card.done{opacity:.65}.title{font-weight:700;margin-bottom:4px}.meta{font-size:12px;color:#222;display:flex;gap:6px;flex-wrap:wrap}.pill{font-size:11px;border-radius:4px;padding:1px 6px;font-weight:700}.overdue{background:#fde7e9;color:#a4262c}.soon{background:#fff4ce;color:#986f00}.ok{background:#e6f4ea;color:#107c10}.nodate{background:#eee;color:#111}.blocked{background:#fce4d6;color:#9a3412}.tag{display:inline-block;font-size:10px;text-transform:uppercase;border-radius:4px;padding:1px 6px;margin:0 4px 4px 0;background:#eee;font-weight:700}.gantt{overflow:auto;background:#fff;border:1px solid var(--line);border-radius:10px}.ghead,.grow{display:grid;grid-template-columns:260px repeat(var(--days),64px);min-width:max-content}.ghead{position:sticky;top:0;background:#fff;z-index:2;border-bottom:1px solid var(--line)}.ghead div,.gcell,.gname{border-right:1px solid var(--line);padding:8px}.gname{font-weight:700;border-bottom:1px solid var(--line);background:#fff}.gcell{min-height:42px;border-bottom:1px solid #f0f0f0}.bar{display:block;border-radius:999px;color:#fff;font-size:11px;padding:4px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;font-weight:700;cursor:pointer}.bar.ok{background:#107c10}.bar.soon{background:#ca8a04}.bar.overdue{background:#a4262c}.bar.done{background:#666}.analysis-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:14px}.panel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px}.panel h2{font-size:16px;margin:0 0 10px}.group{margin:12px 0}.group h3{font-size:14px;margin:0 0 6px;color:#5e1622}.line{margin:6px 0;padding-left:12px}.empty{color:#333;font-style:italic}.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:50;align-items:center;justify-content:center;padding:20px}.modal.open{display:flex}.modal-card{background:#fff;border-radius:12px;max-width:780px;width:100%;max-height:88vh;overflow:auto;box-shadow:var(--shadow);padding:20px}.modal-card h2{margin:0 0 8px}.close{float:right;border:none;background:none;font-size:22px;cursor:pointer}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.detail-box{border-top:1px solid var(--line);padding-top:10px;margin-top:10px;white-space:pre-wrap}@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.analysis-grid{grid-template-columns:1fr}.detail-grid{grid-template-columns:1fr}}\n</style>\n</head>\n<body>\n<header><div><h1>Seguimiento \u00b7 __BOARD_TITLE__</h1><div class=\"sub\">Corte: __CUT_DATE__ \u00b7 archivo filtrable para equipo</div></div><div class=\"tabs\"><button class=\"tab active\" data-view=\"panel\">Panel</button><button class=\"tab\" data-view=\"gantt\">Gantt</button><button class=\"tab\" data-view=\"analysis\">An\u00e1lisis</button></div></header>\n<div class=\"wrap\">\n  <div class=\"filters\">\n    <input id=\"q\" placeholder=\"Buscar tarea, descripci\u00f3n, responsable...\">\n    <select id=\"fAssignee\"><option value=\"\">Responsable: todos</option></select>\n    <select id=\"fBU\"><option value=\"\">BU: todas</option></select>\n    <select id=\"fDep\"><option value=\"\">Dep\u00f3sito: todos</option></select>\n    <select id=\"fStatus\"><option value=\"\">Estado: todos</option><option value=\"todo\">Pendiente</option><option value=\"progress\">En curso</option><option value=\"blocked\">Bloqueado</option><option value=\"done\">Hecho</option><option value=\"__overdue__\">Vencidas</option><option value=\"__soon__\">Pr\u00f3ximas a vencer</option><option value=\"__blocking__\">Bloqueantes</option></select>\n    <button class=\"btn\" id=\"clear\">Limpiar</button>\n  </div>\n  <div id=\"app\"></div>\n</div>\n<div class=\"modal\" id=\"modal\"><div class=\"modal-card\"><button class=\"close\" id=\"modalClose\">\u00d7</button><div id=\"modalBody\"></div></div></div>\n<script>window.__TEAM_DATA__=__TEAM_DATA_JSON__;__CLOSE_SCRIPT__\n<script>\nconst DATA=window.__TEAM_DATA__;const board=DATA.board;let view='panel';\nconst $=s=>document.querySelector(s);const app=$('#app');\nconst statusMap={todo:'Pendiente',progress:'En curso',blocked:'Bloqueado',done:'Hecho'};\nfunction esc(s){return String(s||'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]));}\nfunction today(){const d=new Date();d.setHours(0,0,0,0);return d}\nfunction diffDays(iso){if(!iso)return null;const d=new Date(iso+'T00:00:00');return Math.round((d-today())/86400000)}\nfunction fmt(iso){if(!iso)return '';const [y,m,d]=iso.split('-');return d+'/'+m}\nfunction colOf(t){return board.columns.find(c=>c.id===t.colId)||{name:'Sin dep\u00f3sito'}}\nfunction buOfCol(c){return (board.regions||[]).find(r=>r.name===(c&&c.region))||null}\nfunction buOfTask(t){return buOfCol(colOf(t))}\nfunction blockingTasks(t){return (t.deps||[]).map(id=>board.tasks.find(x=>x.id===id)).filter(Boolean)}\nfunction blockedByTask(t){return board.tasks.filter(x=>(x.deps||[]).includes(t.id))}\nfunction isOverdue(t){const d=diffDays(t.date);return t.status!=='done'&&d!==null&&d<0}function isSoon(t){const d=diffDays(t.date);return t.status!=='done'&&d!==null&&d>=0&&d<=7}function isBlocking(t){return t.status!=='done'&&blockedByTask(t).some(x=>x.status!=='done')}\nfunction dueClass(t){if(t.status==='done')return 'done';if(!t.date)return 'nodate';if(isOverdue(t))return 'overdue';if(isSoon(t))return 'soon';return 'ok'}\nfunction dueRelativeText(t){const d=diffDays(t.date);if(d===null)return 'sin fecha';if(t.status==='done')return 'hecha';if(d<0)return 'vencida hace '+Math.abs(d)+' d';if(d===0)return 'vence hoy';return 'vence en '+d+' d'}\nfunction dateTextShort(t){return dueRelativeText(t)}\nfunction dateTextFull(t){const d=diffDays(t.date);if(d===null)return 'Fecha vencimiento: sin fecha';const f=fmt(t.date);return 'Fecha vencimiento: '+f+' - '+dueRelativeText(t)}\nfunction matchesStatus(t,v){if(!v)return true;if(v==='__overdue__')return isOverdue(t);if(v==='__due_soon__'||v==='__soon__')return isSoon(t);if(v==='__blocking__')return isBlocking(t);return t.status===v}\nfunction filtered(){const q=$('#q').value.toLowerCase().trim(),a=$('#fAssignee').value,bu=$('#fBU').value,dep=$('#fDep').value,st=$('#fStatus').value;return board.tasks.filter(t=>{const c=colOf(t),r=buOfCol(c);const text=[t.title,t.desc,t.assignee,t.meetingNote,c.name,(r&&r.name),...(t.tags||[]).map(x=>x.label)].join(' ').toLowerCase();return(!q||text.includes(q))&&(!a||(t.assignee||'__none__')===a)&&(!bu||((r&&r.name)||'__none__')===bu)&&(!dep||t.colId===dep)&&matchesStatus(t,st)})}\nfunction sortTasks(arr){return [...arr].sort((a,b)=>{const da=diffDays(a.date),db=diffDays(b.date);const va=da===null?99999:da,vb=db===null?99999:db;if(va!==vb)return va-vb;return (a.title||'').localeCompare(b.title||'','es')})}\nfunction fillFilters(){const ass=[...new Set(board.tasks.map(t=>t.assignee||'').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));if(board.tasks.some(t=>!t.assignee))ass.unshift('__none__');ass.forEach(x=>$('#fAssignee').insertAdjacentHTML('beforeend','<option value=\"'+esc(x)+'\">'+(x==='__none__'?'Sin responsable':esc(x))+'</option>'));(board.regions||[]).forEach(r=>$('#fBU').insertAdjacentHTML('beforeend','<option value=\"'+esc(r.name)+'\">'+esc(r.name)+'</option>'));board.columns.forEach(c=>$('#fDep').insertAdjacentHTML('beforeend','<option value=\"'+esc(c.id)+'\">'+esc(c.name)+'</option>'));}\nfunction kpis(tasks){const active=tasks.filter(t=>t.status!=='done'),done=tasks.filter(t=>t.status==='done');return '<div class=\"kpis\"><div class=\"kpi\"><b>'+active.length+'</b>activas</div><div class=\"kpi red\"><b>'+active.filter(isOverdue).length+'</b>vencidas</div><div class=\"kpi orange\"><b>'+active.filter(isSoon).length+'</b>vencen \u2264 7 d\u00edas</div><div class=\"kpi red\"><b>'+active.filter(t=>t.status==='blocked').length+'</b>bloqueadas</div><div class=\"kpi\"><b>'+active.filter(t=>!t.assignee).length+'</b>sin responsable</div><div class=\"kpi\"><b>'+active.filter(t=>!t.date).length+'</b>sin fecha</div><div class=\"kpi green\"><b>'+(board.tasks.length?Math.round(done.length/board.tasks.length*100):0)+'%</b>avance</div></div>'}\nfunction card(t){return '<div class=\"card '+(t.status==='done'?'done':'')+'\" onclick=\"openTask(\\''+t.id+'\\')\"><div>'+(t.tags||[]).map(g=>'<span class=\"tag\">'+esc(g.label)+'</span>').join('')+'</div><div class=\"title\">'+esc(t.title||'Sin t\u00edtulo')+'</div><div class=\"meta\"><span>'+esc(t.assignee||'Sin responsable')+'</span><span class=\"pill '+dueClass(t)+'\">'+esc(dateTextShort(t))+'</span>'+(t.status==='blocked'?'<span class=\"pill blocked\">Bloqueada</span>':'')+(isBlocking(t)?'<span class=\"pill blocked\">Bloqueante</span>':'')+'</div>'+(t.desc?'<div style=\"margin-top:5px\">'+esc(t.desc)+'</div>':'')+'</div>'}\nfunction renderPanel(){const tasks=filtered();let h=kpis(tasks)+'<div class=\"board\">';board.columns.forEach(c=>{const r=buOfCol(c);const ts=sortTasks(tasks.filter(t=>t.colId===c.id));if(!ts.length)return;h+='<section class=\"col\"><div class=\"colh\">'+esc(c.name)+' '+(r?'<span class=\"bu\" style=\"background:'+esc(r.color)+'\">'+esc(r.name)+'</span>':'')+'<span class=\"count\">'+ts.length+'</span></div>'+ts.map(card).join('')+'</section>'});h+='</div>';app.innerHTML=h;}\nfunction renderGantt(){const tasks=sortTasks(filtered().filter(t=>t.date));let min=today(),max=today();tasks.forEach(t=>{const d=new Date(t.date+'T00:00:00');if(d<min)min=d;if(d>max)max=d});min.setDate(min.getDate()-3);max.setDate(max.getDate()+7);const days=[];for(let d=new Date(min);d<=max;d.setDate(d.getDate()+1))days.push(new Date(d));let h=kpis(filtered())+'<div class=\"gantt\"><div class=\"ghead\" style=\"--days:'+days.length+'\"><div>Tarea</div>'+days.map(d=>'<div>'+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'</div>').join('')+'</div>';tasks.forEach(t=>{const idx=days.findIndex(d=>d.toDateString()===new Date(t.date+'T00:00:00').toDateString());h+='<div class=\"grow\" style=\"--days:'+days.length+'\"><div class=\"gname\">'+esc(t.title||'Sin t\u00edtulo')+'<div class=\"meta\">'+esc(colOf(t).name)+' \u00b7 '+esc(t.assignee||'Sin responsable')+'</div></div>'+days.map((d,i)=>'<div class=\"gcell\">'+(i===idx?'<span class=\"bar '+dueClass(t)+'\" onclick=\"openTask(\\''+t.id+'\\')\">'+esc(t.assignee||'Tarea')+'</span>':'')+'</div>').join('')+'</div>'});h+='</div>';app.innerHTML=h;}\nfunction renderAnalysis(){\n  const tasks=filtered(), active=tasks.filter(t=>t.status!=='done');\n  let h=kpis(tasks)+'<div class=\"analysis-grid\"><div class=\"panel\"><h2>Foco para reuni\u00f3n</h2>';\n  const focus=sortTasks(active.filter(t=>isOverdue(t)||isSoon(t)||t.status==='blocked'||isBlocking(t)));\n  const byBU=new Map();\n  focus.forEach(t=>{\n    const r=buOfTask(t), bu=(r&&r.name)||'Sin BU', dep=colOf(t).name;\n    if(!byBU.has(bu)) byBU.set(bu,new Map());\n    if(!byBU.get(bu).has(dep)) byBU.get(bu).set(dep,[]);\n    byBU.get(bu).get(dep).push(t);\n  });\n  if(!focus.length) h+='<p class=\"empty\">Sin focos cr\u00edticos con los filtros actuales.</p>';\n  for(const [bu,deps] of byBU.entries()){\n    h+='<div class=\"group\"><h3>'+esc(bu)+'</h3>';\n    for(const [dep,ts] of deps.entries()){\n      h+='<b>'+esc(dep)+'</b>';\n      ts.forEach(t=>{\n        h+='<div class=\"line\">\u2022 <a href=\"#\" onclick=\"openTask(\\''+t.id+'\\');return false\">'+esc(t.title||'Sin t\u00edtulo')+'</a> \u2014 '+esc(t.assignee||'Sin responsable')+' \u2014 '+esc(dateTextShort(t));\n        if(isBlocking(t)) h+=' <small>(bloquea: '+esc(blockedByTask(t).map(x=>x.title).join(', '))+')</small>';\n        if(blockingTasks(t).length) h+=' <small>(depende de: '+esc(blockingTasks(t).map(x=>x.title).join(', '))+')</small>';\n        h+='</div>';\n      });\n    }\n    h+='</div>';\n  }\n  h+='</div><div class=\"panel\"><h2>Dependencias a destrabar</h2>';\n  const blockers=sortTasks(active.filter(isBlocking));\n  if(!blockers.length) h+='<p class=\"empty\">Sin tareas bloqueantes.</p>';\n  blockers.forEach(t=>{\n    h+='<div class=\"line\">\u2022 <a href=\"#\" onclick=\"openTask(\\''+t.id+'\\');return false\"><b>'+esc(t.title||'Sin t\u00edtulo')+'</b></a> \u2014 '+esc(t.assignee||'Sin responsable')+' \u2014 bloquea: '+esc(blockedByTask(t).map(x=>x.title).join(', '))+'</div>';\n  });\n  h+='</div></div>';\n  app.innerHTML=h;\n}\nfunction render(){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view===view));if(view==='panel')renderPanel();if(view==='gantt')renderGantt();if(view==='analysis')renderAnalysis()}\nfunction openTask(id){const t=board.tasks.find(x=>x.id===id);if(!t)return;const r=buOfTask(t);const subs=(t.subtasks||[]).filter(s=>(s.text||'').trim());const subsHtml=subs.length?'<div class=\"detail-box\"><b>Subtareas</b><ul style=\"margin:8px 0 0 18px;padding:0\">'+subs.map(s=>'<li style=\"margin:4px 0;'+(s.done?'text-decoration:line-through;color:#555':'')+'\">'+(s.done?'✅ ':'☐ ')+esc(s.text)+'</li>').join('')+'</ul></div>':'';$('#modalBody').innerHTML='<h2>'+esc(t.title||'Sin t\u00edtulo')+'</h2><div class=\"detail-grid\"><div><b>Dep\u00f3sito:</b> '+esc(colOf(t).name)+'<br><b>BU:</b> '+esc(r?r.name:'Sin BU')+'<br><b>Responsable:</b> '+esc(t.assignee||'Sin responsable')+'<br><b>Estado:</b> '+esc(statusMap[t.status]||t.status)+'<br><b>Vencimiento:</b> '+esc(dateTextFull(t))+'</div><div><b>Prioridad:</b> '+esc(t.priority||'media')+'<br><b>Depende de:</b> '+esc(blockingTasks(t).map(x=>x.title).join(', ')||'Ninguna')+'<br><b>Bloquea a:</b> '+esc(blockedByTask(t).map(x=>x.title).join(', ')||'Ninguna')+'</div></div>'+(t.desc?'<div class=\"detail-box\"><b>Descripci\u00f3n</b><br>'+esc(t.desc)+'</div>':'')+(t.meetingNote?'<div class=\"detail-box\"><b>Comentarios</b><br>'+esc(t.meetingNote)+'</div>':'')+subsHtml;$('#modal').classList.add('open')}\n$('#modalClose').onclick=()=>$('#modal').classList.remove('open');$('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').classList.remove('open')};document.addEventListener('keydown',e=>{if(e.key==='Escape')$('#modal').classList.remove('open')});\ndocument.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{view=b.dataset.view;render()});['q','fAssignee','fBU','fDep','fStatus'].forEach(id=>$('#'+id).addEventListener('input',render));$('#clear').onclick=()=>{['q','fAssignee','fBU','fDep','fStatus'].forEach(id=>$('#'+id).value='');render()};fillFilters();render();\n__CLOSE_SCRIPT__\n</body></html>";
 function exportTeamHTML() {
-  const board = JSON.parse(JSON.stringify(currentBoard()));
-  // Exportación modo resumen: se excluyen tareas completadas para que el archivo compartido muestre solo pendientes/activas.
-  board.tasks = (board.tasks || []).filter(t => t.status !== 'done');
+  const sourceBoard = currentBoard();
+  const board = JSON.parse(JSON.stringify(sourceBoard || {}));
+  board.columns = Array.isArray(board.columns) ? board.columns : [];
+  board.tasks = Array.isArray(board.tasks) ? board.tasks.filter(t => t.status !== 'done') : [];
+  board.members = Array.isArray(board.members) ? board.members : [];
+  board.regions = Array.isArray(board.regions) ? board.regions : [];
+
   const payload = {
     app: 'Global Sourcing PM - Team Snapshot',
     exportedAt: todayISO(),
     board
   };
-  const filename = `Seguimiento_${board.name.replace(/[^a-z0-9ñáéíóúü]+/gi,'_')}_${todayISO()}.html`;
-  let html = TEAM_HTML_TEMPLATE
-    .replaceAll('__BOARD_TITLE__', escapeHtml(board.name))
-    .replaceAll('__CUT_DATE__', formatDate(todayISO(), true))
-    .replace('__TEAM_DATA_JSON__', JSON.stringify(payload).replace(/</g, '\u003c'))
-    .replaceAll('__CLOSE_SCRIPT__', '</' + 'script>');
+
+  function toBase64Unicode(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+
+  const dataB64 = toBase64Unicode(JSON.stringify(payload));
+  const boardTitle = escapeHtml(board.name || 'Gestor');
+  const cutDate = formatDate(todayISO(), true);
+  const filename = `Seguimiento_${(board.name || 'gestor').replace(/[^a-z0-9ñáéíóúü]+/gi,'_')}_${todayISO()}.html`;
+  const scriptEnd = '</' + 'script>';
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seguimiento · ${boardTitle}</title>
+<style>
+:root{--bg:#f7f4ef;--paper:#fff;--line:#e5ded2;--ink:#201a16;--muted:#665b51;--wine:#7a2533;--red:#a4262c;--orange:#ca5010;--gold:#986f00;--green:#107c10;--shadow:0 12px 30px rgba(37,31,27,.11)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,"Segoe UI",system-ui,-apple-system,BlinkMacSystemFont,Arial,sans-serif;font-size:14px;line-height:1.42}button,input,select{font:inherit}a{color:var(--wine);font-weight:750;text-decoration:none}a:hover{text-decoration:underline}header{position:sticky;top:0;z-index:10;background:var(--paper);border-bottom:1px solid var(--line);padding:14px 22px;display:flex;gap:18px;align-items:center;justify-content:space-between;box-shadow:0 1px 0 rgba(0,0,0,.03)}h1{margin:0;font-size:19px}.sub{font-size:12px;color:var(--muted);margin-top:2px}.tabs{display:flex;gap:8px}.tab,.btn{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:8px 14px;cursor:pointer;font-weight:750}.tab.active{background:var(--wine);border-color:var(--wine);color:#fff}.wrap{padding:16px 22px}.filters{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px;align-items:center}.filters input,.filters select{height:36px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:0 12px;color:#111}.filters input{width:300px}.kpis{display:grid;grid-template-columns:repeat(7,minmax(118px,1fr));gap:10px;margin-bottom:16px}.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 1px 1px rgba(0,0,0,.02)}.kpi b{display:block;font-size:25px;margin-bottom:4px}.kpi.red b{color:var(--red)}.kpi.orange b{color:var(--orange)}.kpi.green b{color:var(--green)}.board{display:flex;gap:12px;align-items:flex-start;overflow:auto;padding-bottom:18px}.col{width:270px;min-width:270px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px}.colh{font-weight:850;margin-bottom:8px;display:flex;gap:6px;align-items:center}.bu{font-size:10px;color:#fff;border-radius:999px;padding:1px 7px;font-weight:850;letter-spacing:.04em}.count{margin-left:auto;background:#f0ece5;border-radius:999px;padding:1px 8px;font-size:12px}.card{border:1px solid var(--line);border-radius:9px;padding:9px;margin:7px 0;background:#fff;cursor:pointer}.card:hover{box-shadow:var(--shadow)}.title{font-weight:750;margin-bottom:4px}.meta{font-size:12px;color:#222;display:flex;gap:6px;flex-wrap:wrap}.pill{font-size:11px;border-radius:4px;padding:1px 6px;font-weight:800}.overdue{background:#fde7e9;color:#a4262c}.soon{background:#fff4ce;color:#986f00}.ok{background:#e6f4ea;color:#107c10}.nodate{background:#eee;color:#111}.blocked{background:#fce4d6;color:#9a3412}.tag{display:inline-block;font-size:10px;text-transform:uppercase;border-radius:4px;padding:1px 6px;margin:0 4px 4px 0;background:#eee;font-weight:800}.gantt{overflow:auto;background:#fff;border:1px solid var(--line);border-radius:12px}.ghead,.grow{display:grid;grid-template-columns:280px repeat(var(--days),64px);min-width:max-content}.ghead{position:sticky;top:0;background:#fff;z-index:2;border-bottom:1px solid var(--line)}.ghead div,.gcell,.gname{border-right:1px solid var(--line);padding:8px}.gname{font-weight:750;border-bottom:1px solid var(--line);background:#fff}.gcell{min-height:42px;border-bottom:1px solid #f2eee8}.bar{display:block;border-radius:999px;color:#fff;font-size:11px;padding:4px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;font-weight:800;cursor:pointer}.bar.ok{background:#107c10}.bar.soon{background:#ca8a04}.bar.overdue{background:#a4262c}.bar.nodate{background:#777}.bar.done{background:#666}.analysis-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:14px}.panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}.panel h2{font-size:16px;margin:0 0 10px}.group{margin:12px 0}.group h3{font-size:14px;margin:0 0 6px;color:var(--wine)}.line{margin:6px 0;padding-left:12px}.empty{color:#333;font-style:italic}.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:50;align-items:center;justify-content:center;padding:20px}.modal.open{display:flex}.modal-card{background:#fff;border-radius:12px;max-width:820px;width:100%;max-height:88vh;overflow:auto;box-shadow:var(--shadow);padding:20px}.modal-card h2{margin:0 0 8px}.close{float:right;border:none;background:none;font-size:22px;cursor:pointer}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.detail-box{border-top:1px solid var(--line);padding-top:10px;margin-top:10px;white-space:pre-wrap}@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.analysis-grid{grid-template-columns:1fr}.detail-grid{grid-template-columns:1fr}.filters input{width:100%}}
+</style>
+</head>
+<body>
+<header><div><h1>Seguimiento · ${boardTitle}</h1><div class="sub">Corte: ${cutDate} · archivo filtrable para equipo</div></div><div class="tabs"><button class="tab active" data-view="panel">Panel</button><button class="tab" data-view="gantt">Gantt</button><button class="tab" data-view="analysis">Análisis</button></div></header>
+<div class="wrap">
+  <div class="filters">
+    <input id="q" placeholder="Buscar tarea, descripción, responsable...">
+    <select id="fAssignee"><option value="">Responsable: todos</option></select>
+    <select id="fBU"><option value="">BU: todas</option></select>
+    <select id="fDep"><option value="">Depósito: todos</option></select>
+    <select id="fStatus"><option value="">Estado: todos</option><option value="todo">Pendiente</option><option value="progress">En curso</option><option value="blocked">Bloqueado</option><option value="done">Hecho</option><option value="__overdue__">Vencidas</option><option value="__soon__">Próximas a vencer</option><option value="__nodate__">Sin vencimiento</option><option value="__blocking__">Bloqueantes</option></select>
+    <button class="btn" id="clear">Limpiar</button>
+  </div>
+  <div id="app"></div>
+</div>
+<div class="modal" id="modal"><div class="modal-card"><button class="close" id="modalClose">×</button><div id="modalBody"></div></div></div>
+<script>const DATA_B64="${dataB64}";${scriptEnd}
+<script>
+(function(){
+var raw = new TextDecoder().decode(Uint8Array.from(atob(DATA_B64), function(c){ return c.charCodeAt(0); }));
+var DATA = JSON.parse(raw);
+var board = DATA.board || {columns:[],tasks:[],regions:[]};
+board.columns = Array.isArray(board.columns) ? board.columns : [];
+board.tasks = Array.isArray(board.tasks) ? board.tasks : [];
+board.regions = Array.isArray(board.regions) ? board.regions : [];
+var view = 'panel';
+var app = document.getElementById('app');
+var statusMap = {todo:'Pendiente',progress:'En curso',blocked:'Bloqueado',done:'Hecho'};
+function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function today(){var d=new Date();d.setHours(0,0,0,0);return d;}
+function fmt(iso){if(!iso)return '';var p=String(iso).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:iso;}
+function diffDays(iso){if(!iso)return null;var d=new Date(iso+'T00:00:00');if(isNaN(d))return null;return Math.round((d-today())/86400000);}
+function assignees(t){var arr=Array.isArray(t.assignees)?t.assignees.filter(Boolean):[];if(arr.length)return Array.from(new Set(arr)).sort(function(a,b){return String(a).localeCompare(String(b),'es');});return t.assignee?[t.assignee]:[];}
+function assigneeLabel(t){var a=assignees(t);return a.length?a.join(', '):'Sin responsable';}
+function assigneeValues(t){var a=assignees(t);return a.length?a:['__none__'];}
+function colOf(t){return board.columns.find(function(c){return c.id===t.colId;}) || {id:'__none__',name:'Sin depósito',region:''};}
+function regionOf(n){return board.regions.find(function(r){return r.name===n;}) || null;}
+function buOfCol(c){return regionOf(c.region);}
+function buOfTask(t){return buOfCol(colOf(t));}
+function blockingTasks(t){return (t.deps||[]).map(function(id){return board.tasks.find(function(x){return x.id===id;});}).filter(Boolean);}
+function blockedByTask(t){return board.tasks.filter(function(x){return (x.deps||[]).includes(t.id);});}
+function isOverdue(t){var d=diffDays(t.date);return t.status!=='done'&&d!==null&&d<0;}
+function isSoon(t){var d=diffDays(t.date);return t.status!=='done'&&d!==null&&d>=0&&d<=7;}
+function isNoDate(t){return t.status!=='done'&&!t.date;}
+function isBlocking(t){return t.status!=='done'&&blockedByTask(t).some(function(x){return x.status!=='done';});}
+function dueClass(t){if(t.status==='done')return 'done';if(!t.date)return 'nodate';if(isOverdue(t))return 'overdue';if(isSoon(t))return 'soon';return 'ok';}
+function dueRelativeText(t){var d=diffDays(t.date);if(d===null)return 'sin fecha';if(t.status==='done')return 'hecha';if(d<0)return 'vencida hace '+Math.abs(d)+' d';if(d===0)return 'vence hoy';return 'vence en '+d+' d';}
+function dateTextFull(t){return t.date?fmt(t.date)+' - '+dueRelativeText(t):'sin fecha';}
+function matchesStatus(t,v){if(!v)return true;if(v==='__overdue__')return isOverdue(t);if(v==='__due_soon__'||v==='__soon__')return isSoon(t);if(v==='__nodate__')return isNoDate(t);if(v==='__blocking__')return isBlocking(t);return t.status===v;}
+function filtered(){var q=document.getElementById('q').value.toLowerCase().trim();var a=document.getElementById('fAssignee').value;var bu=document.getElementById('fBU').value;var dep=document.getElementById('fDep').value;var st=document.getElementById('fStatus').value;return board.tasks.filter(function(t){var c=colOf(t);var r=buOfCol(c);var text=[t.title,t.desc,assigneeLabel(t),t.meetingNote,c.name,(r&&r.name)].concat((t.tags||[]).map(function(x){return x.label;})).join(' ').toLowerCase();return(!q||text.indexOf(q)>-1)&&(!a||assigneeValues(t).includes(a))&&(!bu||((r&&r.name)||'__none__')===bu)&&(!dep||t.colId===dep)&&matchesStatus(t,st);});}
+function sortTasks(arr){return arr.slice().sort(function(a,b){var da=diffDays(a.date),db=diffDays(b.date);var va=da===null?99999:da,vb=db===null?99999:db;if(va!==vb)return va-vb;return String(a.title||'').localeCompare(String(b.title||''),'es');});}
+function fillFilters(){var fA=document.getElementById('fAssignee'), fBU=document.getElementById('fBU'), fDep=document.getElementById('fDep');Array.from(new Set(board.tasks.flatMap(assigneeValues))).sort(function(a,b){return String(a).localeCompare(String(b),'es');}).forEach(function(x){var o=document.createElement('option');o.value=x;o.textContent=x==='__none__'?'Sin responsable':x;fA.appendChild(o);});board.regions.forEach(function(r){var o=document.createElement('option');o.value=r.name;o.textContent=r.name;fBU.appendChild(o);});board.columns.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.name;fDep.appendChild(o);});}
+function kpis(tasks){var active=tasks.filter(function(t){return t.status!=='done';});var done=tasks.filter(function(t){return t.status==='done';});var pct=board.tasks.length?Math.round(done.length/board.tasks.length*100):0;return '<div class="kpis"><div class="kpi"><b>'+active.length+'</b>activas</div><div class="kpi red"><b>'+active.filter(isOverdue).length+'</b>vencidas</div><div class="kpi orange"><b>'+active.filter(isSoon).length+'</b>vencen ≤ 7 días</div><div class="kpi red"><b>'+active.filter(function(t){return t.status==='blocked';}).length+'</b>bloqueadas</div><div class="kpi"><b>'+active.filter(function(t){return assignees(t).length===0;}).length+'</b>sin responsable</div><div class="kpi"><b>'+active.filter(function(t){return !t.date;}).length+'</b>sin fecha</div><div class="kpi green"><b>'+pct+'%</b>avance</div></div>';}
+function card(t){var tags=(t.tags||[]).map(function(g){return '<span class="tag">'+esc(g.label)+'</span>';}).join('');var flags=(t.status==='blocked'?'<span class="pill blocked">Bloqueada</span>':'')+(isBlocking(t)?'<span class="pill blocked">Bloqueante</span>':'');return '<div class="card" data-task="'+esc(t.id)+'"><div>'+tags+'</div><div class="title">'+esc(t.title||'Sin título')+'</div><div class="meta"><span>'+esc(assigneeLabel(t))+'</span><span class="pill '+dueClass(t)+'">'+esc(dueRelativeText(t))+'</span>'+flags+'</div>'+(t.desc?'<div style="margin-top:5px">'+esc(t.desc)+'</div>':'')+'</div>';}
+function renderPanel(){var tasks=filtered();var h=kpis(tasks)+'<div class="board">';board.columns.forEach(function(c){var r=buOfCol(c);var ts=sortTasks(tasks.filter(function(t){return t.colId===c.id;}));if(!ts.length)return;h+='<section class="col"><div class="colh">'+esc(c.name)+' '+(r?'<span class="bu" style="background:'+esc(r.color||'#7a2533')+'">'+esc(r.name)+'</span>':'')+'<span class="count">'+ts.length+'</span></div>'+ts.map(card).join('')+'</section>';});h+='</div>';app.innerHTML=h;bindCards();}
+function renderGantt(){var tasks=sortTasks(filtered().filter(function(t){return t.date;}));var min=today(), max=today();tasks.forEach(function(t){var d=new Date(t.date+'T00:00:00');if(d>max)max=d;});min.setDate(1);max.setDate(max.getDate()+7);var days=[];for(var d=new Date(min);d<=max;d.setDate(d.getDate()+1))days.push(new Date(d));var h=kpis(filtered())+'<div class="gantt"><div class="ghead" style="--days:'+days.length+'"><div>Tarea</div>'+days.map(function(d){return '<div>'+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'</div>';}).join('')+'</div>';tasks.forEach(function(t){var idx=days.findIndex(function(d){return d.toDateString()===new Date(t.date+'T00:00:00').toDateString();});h+='<div class="grow" style="--days:'+days.length+'"><div class="gname">'+esc(t.title||'Sin título')+'<div class="meta">'+esc(colOf(t).name)+' · '+esc(assigneeLabel(t))+'</div></div>'+days.map(function(d,i){return '<div class="gcell">'+(i===idx?'<span class="bar '+dueClass(t)+'" data-task="'+esc(t.id)+'">'+esc(assigneeLabel(t))+'</span>':'')+'</div>';}).join('')+'</div>';});h+='</div>';app.innerHTML=h;bindCards();}
+function renderAnalysis(){var tasks=filtered(),active=tasks.filter(function(t){return t.status!=='done';});var h=kpis(tasks)+'<div class="analysis-grid"><div class="panel"><h2>Foco para reunión</h2>';var focus=sortTasks(active.filter(function(t){return isOverdue(t)||isSoon(t)||isNoDate(t)||t.status==='blocked'||isBlocking(t);}));if(!focus.length)h+='<p class="empty">Sin focos críticos con los filtros actuales.</p>';var byBU=new Map();focus.forEach(function(t){var r=buOfTask(t),bu=(r&&r.name)||'Sin BU',dep=colOf(t).name;if(!byBU.has(bu))byBU.set(bu,new Map());if(!byBU.get(bu).has(dep))byBU.get(bu).set(dep,[]);byBU.get(bu).get(dep).push(t);});byBU.forEach(function(deps,bu){h+='<div class="group"><h3>'+esc(bu)+'</h3>';deps.forEach(function(ts,dep){h+='<b>'+esc(dep)+'</b>';ts.forEach(function(t){h+='<div class="line">• <a href="#" data-task="'+esc(t.id)+'">'+esc(t.title||'Sin título')+'</a> — '+esc(assigneeLabel(t))+' — '+esc(dueRelativeText(t))+'</div>';});});h+='</div>';});h+='</div><div class="panel"><h2>Dependencias a destrabar</h2>';var blockers=sortTasks(active.filter(isBlocking));if(!blockers.length)h+='<p class="empty">Sin tareas bloqueantes.</p>';blockers.forEach(function(t){h+='<div class="line">• <a href="#" data-task="'+esc(t.id)+'"><b>'+esc(t.title||'Sin título')+'</b></a> — '+esc(assigneeLabel(t))+' — bloquea: '+esc(blockedByTask(t).map(function(x){return x.title;}).join(', '))+'</div>';});h+='</div></div>';app.innerHTML=h;bindCards();}
+function render(){document.querySelectorAll('.tab').forEach(function(b){b.classList.toggle('active',b.dataset.view===view);});if(view==='panel')renderPanel();if(view==='gantt')renderGantt();if(view==='analysis')renderAnalysis();}
+function openTask(id){var t=board.tasks.find(function(x){return x.id===id;});if(!t)return;var r=buOfTask(t);var subs=(t.subtasks||[]).filter(function(s){return String(s.text||'').trim();});var subsHtml=subs.length?'<div class="detail-box"><b>Subtareas</b><ul style="margin:8px 0 0 18px;padding:0">'+subs.map(function(s){return '<li style="margin:4px 0;'+(s.done?'text-decoration:line-through;color:#555':'')+'">'+(s.done?'✅ ':'☐ ')+esc(s.text)+'</li>';}).join('')+'</ul></div>':'';document.getElementById('modalBody').innerHTML='<h2>'+esc(t.title||'Sin título')+'</h2><div class="detail-grid"><div><b>Depósito:</b> '+esc(colOf(t).name)+'<br><b>BU:</b> '+esc(r?r.name:'Sin BU')+'<br><b>Responsable:</b> '+esc(assigneeLabel(t))+'<br><b>Estado:</b> '+esc(statusMap[t.status]||t.status)+'<br><b>Vencimiento:</b> '+esc(dateTextFull(t))+'</div><div><b>Prioridad:</b> '+esc(t.priority||'media')+'<br><b>Depende de:</b> '+esc(blockingTasks(t).map(function(x){return x.title;}).join(', ')||'Ninguna')+'<br><b>Bloquea a:</b> '+esc(blockedByTask(t).map(function(x){return x.title;}).join(', ')||'Ninguna')+'</div></div>'+(t.desc?'<div class="detail-box"><b>Descripción</b><br>'+esc(t.desc)+'</div>':'')+(t.meetingNote?'<div class="detail-box"><b>Comentarios</b><br>'+esc(t.meetingNote)+'</div>':'')+subsHtml;document.getElementById('modal').classList.add('open');}
+function bindCards(){document.querySelectorAll('[data-task]').forEach(function(el){el.onclick=function(e){e.preventDefault();openTask(el.getAttribute('data-task'));};});}
+document.getElementById('modalClose').onclick=function(){document.getElementById('modal').classList.remove('open');};document.getElementById('modal').onclick=function(e){if(e.target.id==='modal')document.getElementById('modal').classList.remove('open');};document.addEventListener('keydown',function(e){if(e.key==='Escape')document.getElementById('modal').classList.remove('open');});document.querySelectorAll('.tab').forEach(function(b){b.onclick=function(){view=b.dataset.view;render();};});['q','fAssignee','fBU','fDep','fStatus'].forEach(function(id){document.getElementById(id).addEventListener('input',render);});document.getElementById('clear').onclick=function(){['q','fAssignee','fBU','fDep','fStatus'].forEach(function(id){document.getElementById(id).value='';});render();};fillFilters();render();
+})();
+${scriptEnd}
+</body></html>`;
+
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 0);
   toast('HTML para equipo exportado');
 }
+
 
 const exportTeamBtn = document.getElementById('m-export-team-html');
 if (exportTeamBtn) exportTeamBtn.onclick = exportTeamHTML;
@@ -6161,7 +6061,7 @@ function ganttTaskTitle(t) {
     t.title || 'Sin título',
     `Estado: ${STATUSES[t.status].label}`,
     `Prioridad: ${(PRIORITIES[t.priority || 'medium'] || PRIORITIES.medium).label}`,
-    taskAssignees(t).length ? `Responsable: ${taskAssigneeText(t)}` : 'Sin responsable',
+    t.assignee ? `Responsable: ${t.assignee}` : 'Sin responsable',
     t.date ? `Vence: ${formatDate(t.date, true)}` : '',
     deps.length ? `Depende de: ${deps.map(x => x.title || 'Sin título').join(', ')}` : 'No depende de otras tareas',
     dependents.length ? `Bloquea a: ${dependents.map(x => x.title || 'Sin título').join(', ')}` : 'No bloquea otras tareas',
@@ -6184,7 +6084,7 @@ function showGanttPopover(t, e) {
     <div class="gantt-popover-meta">
       <div><b>Depósito:</b> ${escapeHtml(col ? col.name : 'Sin depósito')}</div>
       <div><b>Vence:</b> ${escapeHtml(formatDate(t.date, true))}</div>
-      <div><b>Responsable:</b> ${escapeHtml(taskAssigneeText(t, 'Sin asignar'))}</div>
+      <div><b>Responsable:</b> ${escapeHtml(t.assignee || 'Sin asignar')}</div>
       <div><b>Estado:</b> ${STATUSES[t.status].label} · <b>Prioridad:</b> ${escapeHtml(p.label)}</div>
     </div>
     <div class="gantt-popover-block">
@@ -6297,12 +6197,13 @@ function renderGanttView() {
   host.innerHTML = '';
   const dated = board.tasks.filter(t => t.date && cardMatchesFilters(t));
   const today = startOfToday();
-  const min = new Date(today.getFullYear(), today.getMonth(), 1);
-  const max = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  let min = new Date(today), max = new Date(today);
   dated.forEach(t => {
     const d = new Date(t.date + 'T00:00:00');
-    if (d > max) max.setTime(d.getTime());
+    if (d < min) min = d;
+    if (d > max) max = d;
   });
+  min.setDate(min.getDate() - 3);
   max.setDate(max.getDate() + 7);
   const days = [];
   for (let d = new Date(min); d <= max; d.setDate(d.getDate()+1)) days.push(new Date(d));
@@ -6328,7 +6229,7 @@ function renderGanttView() {
     const section = document.createElement('div');
     section.className = 'gantt-section';
     section.innerHTML = `<div class="gantt-section-title">
-      <span class="gantt-section-title-main">${escapeHtml(col.name)} ${renderGanttRegionBadge(col)} <span>${colTasks.length}</span></span>
+      <span class="gantt-section-title-main">${escapeHtml(col.name)} <span>${colTasks.length}</span></span>
       ${completedCount ? `<button type="button" class="completed-toggle">${hiddenCompleted ? 'Mostrar completadas' : 'Ocultar completadas'}</button>` : ''}
     </div>`;
     const toggle = section.querySelector('.completed-toggle');
@@ -6358,7 +6259,7 @@ function renderGanttView() {
       const { deps, dependents } = ganttDependencyInfo(t);
       const depMark = deps.some(x => x.status !== 'done') ? ' ⛓' : dependents.length ? ' 🔗' : '';
       row.innerHTML = `<button class="gantt-name"><span class="priority-dot priority-${t.priority || 'medium'}"></span>${escapeHtml(t.title || 'Sin título')}<small>${escapeHtml(p.label)} · ${STATUSES[t.status].label}${depMark}</small></button>` +
-        days.map((d, i) => `<div class="gantt-cell ${i===todayIdx?'today':''}">${i===idx ? `<span class="gantt-pill ${t.status === 'done' ? 'done ' : ''}${dueStatusClass(t)}" data-task-id="${t.id}">${escapeHtml(taskAssigneeText(t))}${depMark}</span>` : ''}</div>`).join('');
+        days.map((d, i) => `<div class="gantt-cell ${i===todayIdx?'today':''}">${i===idx ? `<span class="gantt-pill ${t.status === 'done' ? 'done ' : ''}${dueStatusClass(t)}" data-task-id="${t.id}">${escapeHtml(t.assignee || 'Sin responsable')}${depMark}</span>` : ''}</div>`).join('');
       row.querySelector('.gantt-name').onclick = () => openTaskModal(t.id);
       const pill = row.querySelector('.gantt-pill');
       if (pill) {
@@ -6439,7 +6340,7 @@ function renderAnalysisView() {
   const overdue = active.filter(t => t.date && daysDiffFromToday(t.date) < 0);
   const dueSoon = active.filter(t => t.date && daysDiffFromToday(t.date) >= 0 && daysDiffFromToday(t.date) <= 3);
   const blocked = active.filter(t => t.status === 'blocked' || taskBlockingNames(t, board).some(dep => dep.status !== 'done'));
-  const noOwner = active.filter(t => taskAssignees(t).length === 0);
+  const noOwner = active.filter(t => !t.assignee);
   const noDate = active.filter(t => !t.date);
   const hasDeps = active.filter(t => (t.deps || []).length || taskBlocksNames(t, board).length);
   const blockers = active.filter(t => taskBlocksNames(t, board).some(d => d.status !== 'done'));
@@ -6459,7 +6360,7 @@ function renderAnalysisView() {
 
   const people = new Map();
   tasks.forEach(t => {
-    const name = taskAssigneeText(t, 'Sin asignar');
+    const name = t.assignee || 'Sin asignar';
     if (!people.has(name)) people.set(name, {name,total:0,active:0,done:0,overdue:0,dueSoon:0,blocked:0,noDate:0});
     const p = people.get(name);
     p.total++;
@@ -6482,7 +6383,7 @@ function renderAnalysisView() {
     if (!list.length) return `<div class="pm-empty">${escapeHtml(emptyText)}</div>`;
     return `<div class="pm-mini-list">${list.map(t => `<button type="button" class="pm-mini-task" data-task-id="${t.id}">
       <strong>${escapeHtml(t.title || 'Sin título')}</strong>
-      <small>${escapeHtml(colName(t))} · ${escapeHtml(taskAssigneeText(t))} · ${escapeHtml(analysisTaskDateMeta(t))}</small>
+      <small>${escapeHtml(colName(t))} · ${escapeHtml(t.assignee || 'Sin responsable')} · ${escapeHtml(analysisTaskDateMeta(t))}</small>
     </button>`).join('')}</div>`;
   };
   const kpiCatalog = {
@@ -6610,7 +6511,7 @@ function buildPMSummaryText(board, data) {
       bu.depositos.forEach(dep => {
         lines.push(`  ▸ ${dep.name}`);
         dep.tasks.forEach(t => {
-          const meta = [taskAssigneeText(t), analysisTaskDateMeta(t)];
+          const meta = [t.assignee || 'Sin responsable', analysisTaskDateMeta(t)];
           const depInfo = dependencyInfoText(t, board);
           lines.push(`    • ${t.title || 'Sin título'} — ${meta.join(' · ')}${depInfo ? ` (${depInfo})` : ''}`);
         });
@@ -6630,9 +6531,12 @@ function closeTagsModal() {
   render();
 }
 function boardTagCatalog() {
-  return collectTags();
+  const b = currentBoard();
+  const map = new Map();
+  (state.knownTags || []).forEach(t => map.set(t.label, t.color || ''));
+  b.tasks.forEach(task => (task.tags || []).forEach(t => map.set(t.label, t.color || '')));
+  return [...map.entries()].map(([label,color]) => ({label,color})).sort((a,b)=>a.label.localeCompare(b.label,'es'));
 }
-
 function renderTagsAdmin() {
   const list = document.getElementById('tag-admin-list');
   const tags = boardTagCatalog();
@@ -6671,14 +6575,14 @@ function renameOrUpdateTag(oldLabel, newLabel, color) {
   b.tasks.forEach(task => (task.tags || []).forEach(t => {
     if (t.label === oldLabel) { t.label = newLabel; t.color = color || t.color || ''; }
   }));
-  b.knownTags = ensureBoardKnownTags(b).filter(t => !((t.label === oldLabel || t.label === newLabel) && (t.boardId === b.id || t.scopeBoardId === b.id)));
-  b.knownTags.push({label: newLabel, color: color || '', boardId: b.id});
+  state.knownTags = (state.knownTags || []).filter(t => t.label !== oldLabel && t.label !== newLabel);
+  state.knownTags.push({label: newLabel, color: color || ''});
   saveState();
 }
 function deleteTagEverywhere(label) {
   const b = currentBoard();
   b.tasks.forEach(task => { task.tags = (task.tags || []).filter(t => t.label !== label); });
-  b.knownTags = ensureBoardKnownTags(b).filter(t => !(t.label === label && (t.boardId === b.id || t.scopeBoardId === b.id)));
+  state.knownTags = (state.knownTags || []).filter(t => t.label !== label);
   saveState();
 }
 function addAdminTag() {
